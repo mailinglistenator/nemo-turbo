@@ -1,13 +1,17 @@
-# nemo-turbo ⚡
+<div align="center">
+  <img src="assets/logo.png" alt="nemo-turbo logo" width="160" height="160" style="border-radius: 28px;" />
+  <h1>nemo-turbo ⚡</h1>
+  <p><strong>Instant launch daemon and CLI for the Nemo file manager on Linux Mint & Cinnamon.</strong></p>
+  <p>Cuts window launch latency from <strong>~1.78s – 4.9s cold start</strong> down to <strong>instant warm response</strong> at <strong>0.00% idle CPU</strong> with zero battery churn.</p>
 
-> **Instant 70ms launch daemon for the Nemo file manager on Linux Mint & Cinnamon.**  
-> Cuts window launch latency from **~1.78s down to 0.07s (a 25x speedup)** at **0.00% idle CPU** with zero battery drain.
-
-[![Linux Mint](https://img.shields.io/badge/Linux_Mint-22.x_|_21.x-87cf3e?logo=linuxmint&logoColor=white)](https://linuxmint.com/)
-[![Cinnamon](https://img.shields.io/badge/Desktop-Cinnamon-orange)](https://github.com/linuxmint/cinnamon)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![RAM](https://img.shields.io/badge/Idle_RAM-~25_MB-success)](#how-it-works)
-[![CPU](https://img.shields.io/badge/Idle_CPU-0.00%25-success)](#how-it-works)
+  <p>
+    <a href="https://linuxmint.com/"><img src="https://img.shields.io/badge/Linux_Mint-22.x_|_21.x-87cf3e?logo=linuxmint&logoColor=white" alt="Linux Mint" /></a>
+    <a href="https://github.com/linuxmint/cinnamon"><img src="https://img.shields.io/badge/Desktop-Cinnamon-orange" alt="Cinnamon" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" /></a>
+    <a href="#how-it-works"><img src="https://img.shields.io/badge/Idle_CPU-0.00%25-success" alt="CPU" /></a>
+    <a href="#how-it-works"><img src="https://img.shields.io/badge/Idle_RAM-~48_MB-success" alt="RAM" /></a>
+  </p>
+</div>
 
 ---
 
