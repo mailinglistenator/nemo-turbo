@@ -1,0 +1,15 @@
+[Unit]
+Description=nemo-turbo: Instant Launch Daemon for Nemo File Manager
+Documentation=https://github.com/mailinglistenator/nemo-turbo
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+Environment="LD_PRELOAD=%h/.local/lib/libnemo-turbo.so"
+ExecStart=/usr/bin/nemo --no-default-window
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
