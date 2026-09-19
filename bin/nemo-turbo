@@ -120,7 +120,22 @@ def cmd_bench():
                 res[parts[0]] = parts[2].lower()
         return res
 
-    print("Running objective window launch benchmark (3 test spawns)...")
+    print("Running objective window launch benchmark...")
+    
+    # Initial warmup pass (ensures GTK window templates are primed after fresh daemon boot)
+    wids_before = get_wids()
+    subprocess.Popen(["nemo", os.path.expanduser("~")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(300):
+        time.sleep(0.01)
+        current_wids = get_wids()
+        new_ids = set(current_wids.keys()) - set(wids_before.keys())
+        warm_wid = next((wid for wid in new_ids if current_wids.get(wid) == "nemo.nemo"), None)
+        if warm_wid:
+            subprocess.run(["wmctrl", "-ic", warm_wid])
+            break
+    time.sleep(0.5)
+
+    print("Benchmarking 3 consecutive window spawns...")
     runs = []
     
     for i in range(3):
