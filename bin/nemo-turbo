@@ -99,7 +99,7 @@ def cmd_optimize():
     settings = [
         ("org.nemo.preferences", "show-directory-item-counts", "never"),
         ("org.nemo.preferences", "detect-content", "false"),
-        ("org.nemo.plugins", "disabled-extensions", "['NemoShare', 'ChangeFolderColor+NemoPython', 'EmblemPropertyPage+NemoPython']"),
+        ("org.nemo.plugins", "disabled-extensions", "['NemoShare']"),
     ]
     for schema, key, val in settings:
         subprocess.run(["gsettings", "set", schema, key, val], check=True)
