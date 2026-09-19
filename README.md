@@ -1,8 +1,8 @@
 <div align="center">
   <img src="assets/logo.png" alt="nemo-turbo logo" width="160" height="160" style="border-radius: 28px;" />
   <h1>nemo-turbo ⚡</h1>
-  <p><strong>Instant launch daemon and CLI for the Nemo file manager on Linux Mint & Cinnamon.</strong></p>
-  <p>Cuts window launch latency from <strong>~1.78s – 4.9s cold start</strong> down to <strong>instant warm response</strong> at <strong>0.00% idle CPU</strong> with zero battery churn.</p>
+  <p><strong>Instant launch daemon & CLI for the Nemo file manager on Linux Mint & Cinnamon.</strong></p>
+  <p>Cuts window launch latency from <strong>~1.2s – 1.7s cold start</strong> down to <strong>instant warm response</strong> at <strong>0.00% idle CPU</strong> with zero battery churn.</p>
 
   <p>
     <a href="https://linuxmint.com/"><img src="https://img.shields.io/badge/Linux_Mint-22.x_|_21.x-87cf3e?logo=linuxmint&logoColor=white" alt="Linux Mint" /></a>
@@ -15,33 +15,29 @@
 
 ---
 
-## The Problem
+## ⚡ The Problem
 
-On Linux Mint and Cinnamon desktops, the **Nemo** file manager can feel sluggish to launch, frequently taking **1.7 to 4.9 seconds** to open.
+On Linux Mint and Cinnamon desktops, the **Nemo** file manager can feel sluggish to launch, frequently taking **1.2 to 1.7+ seconds** to open.
 
 ### Why does this happen?
-1. **No Resident Window Daemon:** In older versions of Cinnamon, Nemo managed both the desktop icons and window browsing in a single process, keeping it warm in RAM. When the Mint team split desktop icon management into a separate binary (`nemo-desktop`), normal Nemo lost its resident daemon.
+1. **No Resident Window Daemon:** In older versions of Cinnamon, Nemo managed both the desktop icons and window browsing in a single process, keeping it warm in RAM. When desktop icon management was split into `nemo-desktop`, the main file manager lost its background daemon.
 2. **The 10-Second Idle Shutdown:** Nemo is built on `GtkApplication`. Whenever all file manager windows are closed, GTK starts an internal 10-second timer. If no new windows open, **Nemo unloads its caches and terminates completely**.
-3. **Cold Start Penalty:** Every subsequent click on "Files" or `Super+E` is forced to do a cold start: loading shared libraries, initializing GTK3 widget trees, parsing fontconfig XMLs, and checking places.
+3. **Cold Start Penalty:** Every subsequent click on "Files" or `Super+E` is forced to do a full cold start: loading shared libraries, initializing GTK3 widget trees, parsing fontconfig XMLs, and querying storage devices.
 
 ---
 
-## The Benchmark
+## 🚀 How It Works (Native `NEMO_PERSIST` Engine)
 
-Measured on **Linux Mint 22.3 (Zena)**, Intel Core i7-7600U, NVMe SSD:
+Rather than relying on fragile process respawn loops or invasive `LD_PRELOAD` hooks (which leak into child applications like `xed`), `nemo-turbo` activates Nemo's own built-in persistence flag:
 
-| State | Cold Start (No Daemon) | `nemo-turbo` Active | **Improvement** |
-| :--- | :---: | :---: | :---: |
-| **Window Launch Latency** | **1,712 ms** (up to 4,900 ms on cold disk) | **72 ms** | **24x – 25x faster** |
-| **CPU Utilization (Idle)** | 0.0% | **0.00%** | **Identical (Asleep)** |
-| **Process Restarts** | Constant cold starts | **0 restarts** | **Zero battery wakeups** |
-| **Memory Footprint** | 0 MB (when dead) | ~25 MB | Negligible |
+```c
+/* src/nemo-main.c:98-100 in Cinnamon Nemo source */
+if (g_getenv ("NEMO_PERSIST") != NULL) {
+    g_application_hold (G_APPLICATION (application));
+}
+```
 
----
-
-## How It Works
-
-`nemo-turbo` solves the problem without fragile hacks or continuous restart loops:
+When `NEMO_PERSIST=1` is set, Nemo natively holds the `GApplication` singleton open in the background:
 
 ```
 [ Desktop Login ]
@@ -49,28 +45,46 @@ Measured on **Linux Mint 22.3 (Zena)**, Intel Core i7-7600U, NVMe SSD:
         ▼
 [ nemo-turbo systemd user service ]
         │
-        ├── Loads ~/.local/lib/libnemo-turbo.so (hooks g_application_run)
+        ├── Environment="NEMO_PERSIST=1"
         │
         ▼
 [ /usr/bin/nemo --no-default-window ]
         │
-        ├── Calls g_application_hold(app)
-        │   Increments GApplication use count (prevents the 10s idle shutdown)
+        ├── Natively calls g_application_hold()
+        │   Increments GApplication use count (prevents 10s idle exit)
         │
         ▼
-[ Sits quietly in Linux epoll_wait (0.00% CPU, ~25 MB RAM) ]
+[ Sits quietly in Linux epoll_wait (0.00% CPU, ~48 MB RAM) ]
         │
    User clicks "Files" or hits Super+E
         │
         ▼
-[ Window appears in 70 ms via instant D-Bus activation ]
+[ Window appears instantly via D-Bus activation ]
 ```
 
-When you close all Nemo windows, Nemo stays resident in RAM at 0.00% CPU, ready to spawn the next window in **70 milliseconds**.
+### Key Advantages:
+* 🛡️ **Zero Child Process Leakage:** Does not use `LD_PRELOAD`. Applications launched from Files (`xed`, `eog`, calculators, LibreOffice) behave completely normally.
+* 📦 **Zero Compiler Dependencies:** No `gcc` or `make` required to install or run.
+* ⚡ **0.00% Idle CPU:** Nemo sleeps in Linux `epoll_wait`. Zero CPU wakeups or battery churn.
+* 🔄 **Restart Resilience:** Configured with `Restart=always` so running `nemo -q` doesn't permanently kill your launch daemon.
 
 ---
 
-## Quickstart
+## 📊 Objective Benchmarks
+
+Tested on **Linux Mint 22.3 (Zena)**, Intel Core i7-7600U, NVMe SSD:
+
+| Metric | Stock Cold Start (No Daemon) | `nemo-turbo` Active | Speedup |
+| :--- | :---: | :---: | :---: |
+| **D-Bus IPC Response** | N/A (Process cold boots) | **~75 ms** | **Instant handoff** |
+| **Visible X11 Window Map** | **1,200 ms – 1,712 ms** | **~380 ms – 500 ms** | **3x – 4x faster** |
+| **Idle CPU Utilization** | 0.0% | **0.00%** (0 ticks) | **Zero churn** |
+| **Idle RAM Footprint** | 0 MB (when dead) | ~48 MB fresh (~70 MB active) | Minimal |
+| **Process Restarts** | Constant cold boots | **0 restarts** | **Zero battery penalty** |
+
+---
+
+## 🛠️ Quickstart
 
 ### Installation (No root/sudo required)
 
@@ -80,58 +94,59 @@ cd nemo-turbo
 ./install.sh
 ```
 
-The installer builds the tiny C module (`libnemo-turbo.so`), registers the CLI (`nemo-turbo`), and enables the user systemd service.
-
 ---
 
-## CLI Usage
+## 💻 CLI Usage
 
-`nemo-turbo` includes a companion CLI for inspection and benchmarks:
+`nemo-turbo` includes a companion CLI for management and live latency benchmarking:
 
 ```bash
-# Check daemon status, PID, and memory footprint
+# Check daemon status, PID, live memory, and measured CPU
 nemo-turbo status
 
-# Measure live window spawn latency on your hardware
+# Measure actual D-Bus and visible window launch latency on your hardware
 nemo-turbo bench
 
-# Apply non-destructive Nemo engine settings (stops Samba & cloud-mount stalls)
+# Apply safe Nemo engine optimizations (disables unused Samba probe)
 nemo-turbo optimize
 
-# Service management
+# Revert optimizations back to previous user settings
+nemo-turbo restore
+
+# View daemon journal logs
+nemo-turbo logs
+
+# Service lifecycle
 nemo-turbo restart
 nemo-turbo stop
 nemo-turbo start
-
-# View daemon logs
-nemo-turbo logs
 ```
 
-### Example `nemo-turbo status` Output:
+### Live CLI Status Output:
 ```text
+$ nemo-turbo status
 === nemo-turbo status ===
-  Service Status:   ACTIVE (running)
-  Daemon PID:       15842
-  Memory Footprint: 24.8 MB
-  CPU Utilization:  0.0% (asleep in event loop)
-  Active Windows:   1
+  Service Status:   ACTIVE (running via systemd)
+  Daemon PID:       1668
+  Memory Footprint: 48.2 MB
+  CPU Utilization:  0.0% (0 ticks/150ms sample)
+  Active Windows:   0
 =========================
 ```
 
 ---
 
-## Recommended Engine Optimizations (`nemo-turbo optimize`)
+## ⚙️ Safe Engine Optimizations (`nemo-turbo optimize`)
 
-Running `nemo-turbo optimize` applies non-destructive `gsettings` tweaks to eliminate other common Nemo bottlenecks:
+Running `nemo-turbo optimize` safely applies non-destructive `gsettings` tweaks:
+1. **Disables Unused Samba Probing:** Prevents Nemo from querying network shares when Samba sharing is unconfigured. Preserves other plugins in `disabled-extensions`.
+2. **Eliminates Cloud-Mount Stalling:** Disables recursive item counting and deep content detection so opening Home (`~`) with virtual cloud mounts never hangs.
 
-1. **Disables Unused Samba Probes:** Stops Nemo from executing `net usershare info` on launch when Samba sharing is unconfigured.
-2. **Prevents Cloud Mount Stalling:** If you have Google Drive, OneDrive, or network drives mounted in Home (`~`), disables recursive item counting and deep MIME detection so opening Home never hangs.
-
-*(All settings are 100% reversible anytime).*
+*All original settings are automatically backed up to `~/.config/nemo-turbo/previous_settings.json` and can be restored anytime with `nemo-turbo restore`.*
 
 ---
 
-## Uninstallation
+## 🗑️ Uninstallation
 
 To restore stock Nemo behavior completely:
 
@@ -142,6 +157,6 @@ cd nemo-turbo
 
 ---
 
-## License
+## 📄 License
 
 MIT License. Copyright (c) 2026 [Kyle Choi](https://github.com/mailinglistenator).
